@@ -5,10 +5,14 @@ import rb, sys
 import rhythmdb
 import gtk.gdk
 
-import urllib, urllib2
-import xml.etree.ElementTree as ET
+from youtuberequest import YouTubeRequest
+from browserbox import BrowserBox
 
-import webkit, webbrowser
+alternate_engines = {
+        'Dailymotion': {
+            'url': 'http://www.dailymotion.com/relevance/search/%(artist_name)s %(song_name)s'
+        }
+}
 
 class YouTubeClipsPlugin (rb.Plugin):
 
@@ -20,10 +24,21 @@ class YouTubeClipsPlugin (rb.Plugin):
 
         # Get artist / song names
         entry = sp.get_playing_entry()
+        entry_id = self.rhymthdb.entry_get(entry, rhythmdb.PROP_ENTRY_ID)
+
+        if entry_id == self.current_entry_id: return False
+        self.current_entry_id = entry_id
+
         artist_name = self.rhymthdb.entry_get(entry, rhythmdb.PROP_ARTIST)
         song_name = self.rhymthdb.entry_get(entry, rhythmdb.PROP_TITLE)
 
-        params = urllib.urlencode({
+        search_params = {
+            'artist_name': artist_name,
+            'song_name': song_name
+        }
+
+        api_params = search_params.copy()
+        api_params.update({
             'category': 'Music',
             'vq': artist_name + "+" + song_name,
             'racy': 'include',
@@ -31,110 +46,76 @@ class YouTubeClipsPlugin (rb.Plugin):
         })
 
         # Our search urls
-        api_url = "http://gdata.youtube.com/feeds/api/videos?%s" % params
-        www_url = "http://www.youtube.com/result?http://www.youtube.com/results?search_query=Music+" + artist_name + "+" + song_name
+        www_url = "http://www.youtube.com/results?search_query=Music+" + artist_name + "+" + song_name
 
-        self.log("Using url : %s" % api_url)
+        #try:
+        if True:
+            search_results = self.ytsearch.search(api_params)
+            self.set_browser_box(www_url, search_results=search_results)
+        #except:
+        #    self.log("Network is not reachable")
+        #    if self.browser_box is not None: self.browser_box.hide()
 
-        # Get YouTube query results as XML
-        """
-        loader = rb.Loader()
-        loader.get_url(api_url, self.setup_video_from_feed)
-        """
-        results = urllib2.urlopen(api_url)
-        results = results.read()
+            #return False
 
-        # Load an XML ElementTree
-        feed = ET.fromstring(results)
+            # No video found
+            # show the default page
+            self.set_browser_box(www_url, page=self.get_default_page(search_params))
 
-        # Pick the first
-        videoentry = feed.find('{http://www.w3.org/2005/Atom}entry')
 
-        # Extract video link
-        video_url = videoentry.find('{http://search.yahoo.com/mrss/}group/{http://search.yahoo.com/mrss/}content')
-        if video_url is not None: video_url = video_url.get('url')
+    def set_browser_box(self, search_url, search_results=None, page=None):
+        if self.browser_box is None:
+            b_box = BrowserBox()
+            self.shell.add_widget (b_box, rb.SHELL_UI_LOCATION_SIDEBAR)
+            self.browser_box = b_box
 
-        # 2nd try, use <player>
-        if video_url is None:
-            video_url = videoentry.find('{http://search.yahoo.com/mrss/}group/{http://search.yahoo.com/mrss/}player')
-            if video_url is not None: video_url = video_url.get('url')
+            def on_fullscreen():
+                self.shell.props.shell_player.pause()
 
-        # Get a browser on the video link,
-        # with link to search results
-        if video_url is None and self.browser is not None:
-            self.browser.hide()
-            return False
+            def off_fullscreen():
+                self.shell.props.shell_player.play()
 
-        self.log("Video url found : %s" % video_url)
+            self.browser_box.set_fullscreen_callback(on_fullscreen, off_fullscreen)
 
-        self.get_browser(video_url, www_url)
+        self.browser_box.set_search_url(search_url)
 
-        self.log("Show browser")
+        if search_results is not None:
+            self.browser_box.set_video_results(search_results)
 
-    def handle_clicks(self, widget, event, video_url, search_url):
-        pass
+        elif page is not None:
+            self.browser_box.set_page(page)
 
-    def open_fullscreen(self, widget, event, video_url, search_url):
-        fs_window = gtk.Window(gtk.TOPLEVEL)
-        fs_window.set_border_width(2)
-        fs_window.modify_bg(gtk.STATE_NORMAL,gtk.gdk.Color(0,0,0))
-        browser = webkit.WebView()
-        browser.set_size_request(300, 200)
-        browser.open(video_url)
-        fs_window.fullscreen()
-        fs_window.add(browser)
-
-        def escape_key_press(widget, event):
-            if event.keyval == gtk.keysyms.Escape:
-                widget.destroy()
-
-        fs_window.connect("key_press_event", escape_key_press)
-
-        fs_window.show_all()
-
-    def get_browser(self, video_url, search_url):
-        if self.browser is None:
-            vbox = gtk.VBox()
-            browser = webkit.WebView()
-            browser.set_size_request(300, 200)
-            self.browser = browser
-            vbox.add(browser)
-
-            btn_fs = gtk.Button(_('F'))
-            btn_fs.connect('button_release_event', self.open_fullscreen, video_url, search_url)
-            vbox.add(btn_fs)
-
-            self.shell.add_widget (vbox, rb.SHELL_UI_LOCATION_SIDEBAR)
-            vbox.show_all()
-        else:
-            browser = self.browser
-            browser.disconnect(self.browser_menu_eventid)
-
-        self.browser_menu_eventid = browser.connect('button_release_event', self.handle_clicks, video_url, search_url)
-
-        #self.search_url = search_url
-        #self.video_url = video_url
-        self.log("Open video url")
-        browser.open(video_url)
-        return browser
+    def get_default_page(self, search_params):
+        return """
+            <div style="width:100%; height:100%; padding:0; margin:0; ">
+                <h1>Oops</h1>
+                <p>""" + _("Sorry, I haven't found a video clip for this music.<br/>You can use the following YouTube search button, or") + """</p>
+                <ul>
+                """ + "\n".join([ ("<li>" + ("<a href=\"%s\">" % engine_config.get('url')) + ("search on %s" % engine_name) + "</a></li>") % search_params for engine_name, engine_config in alternate_engines.iteritems() ]) + """
+                </ul>
+            </div>
+            """
 
     def activate(self, shell):
         # Keep a self ref on shell db
+        self.current_entry_id = None
+        self.browser_box = None
         self.rhymthdb = shell.props.db
         self.shell = shell
+
+        self.ytsearch = YouTubeRequest()
 
         self.event_ids = {
             'playing_changed': shell.get_player().connect('playing-changed', self.playing_changed),
         }
-
-        self.browser = None
 
     def desactivate(self, shell):
         for id in self.event_ids:
             self.disconnect(id)
 
         del self.event_ids
-        del self.browser
+        del self.ytsearch
+        del self.browser_box
         del self.shell
         del self.rhymthdb
 
