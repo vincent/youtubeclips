@@ -1,5 +1,5 @@
 
-import sys
+import sys, re
 import urllib, urllib2
 import xml.etree.ElementTree as ET
 
@@ -56,6 +56,13 @@ class YouTubeRequest():
         if video_url is None:
             video_url = result.find('{http://search.yahoo.com/mrss/}group/{http://search.yahoo.com/mrss/}player')
             if video_url is not None: video_url = video_url.get('url')
+            
+            # handle http://www.youtube.com/watch?v=sFZjqVnWBhc&feature=youtube_gdata_player
+            # to http://www.youtube.com/v/X3Uc3BMdP9Y?f=videos&app=youtube_gdata
+            m = re.search('v=([^&]+)', video_url)
+            if m.group(1):
+                video_url = "http://www.youtube.com/v/%s?f=videos&app=youtube_gdata" % m.group(1)            
+            
 
         details['video_title'] = video_title
         details['video_url'] = video_url

@@ -104,7 +104,7 @@ class YouTubeClipsPlugin (rb.Plugin):
         self.shell = shell
 
         self.ytsearch = YouTubeRequest()
-
+        
         self.event_ids = {
             'playing_changed': shell.get_player().connect('playing-changed', self.playing_changed),
         }
