@@ -1,0 +1,13 @@
+h1. YoutubeClips
+
+is a tiny Youtube videos player inside Rhythmbox, searching and playing music videos of the current played song.
+
+h1. Installation
+
+* Make sure you have either python-gtkmozembed or python-gtkwebkit librairies installed.
+* Place the plugin in your Rhythmbox plugin folder.
+ If it doesn't exist then simply create one. Usually it resides here:
+ ~/.gnome2/rhythmbox/plugins
+* Then activate it. Video results should appear below playlists.
+
+h1. Screenshots
