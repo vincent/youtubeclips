@@ -11,3 +11,7 @@ h1. Installation
 * Then activate it. Video results should appear below playlists.
 
 h1. Screenshots
+
+!http://github.com/vincent/youtubeclips/raw/master/doc/screenshots/stop.png!
+
+!http://github.com/vincent/youtubeclips/raw/master/doc/screenshots/playing.png!
